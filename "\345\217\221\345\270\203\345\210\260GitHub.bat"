@@ -1,0 +1,36 @@
+@echo off
+chcp 65001 >nul
+setlocal
+cd /d "%~dp0"
+
+echo.
+echo  ============================================================
+echo   掌心 C  ·  发布到 GitHub
+echo  ============================================================
+echo.
+echo   这一步会把本目录作为一个公开仓库推送到你的 GitHub 账号，
+echo   并尝试开启 GitHub Pages（这样别人可以直接在线打开）。
+echo.
+echo   需要一个 GitHub 令牌（Token）：
+echo     1. 浏览器打开  https://github.com/settings/tokens
+echo     2. Generate new token  -  Generate new token (classic)
+echo     3. Note 随便写（例如 palm-c），Expiration 选 90 days
+echo     4. 勾选  repo  这一项，页面底部  Generate token
+echo     5. 复制生成的令牌（只显示一次），粘到下面的提示里
+echo.
+echo   令牌只在内存里使用，不会写入任何文件，用完可以去同一页面 Revoke。
+echo  ============================================================
+echo.
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\publish.ps1" %*
+set RC=%ERRORLEVEL%
+
+echo.
+if "%RC%"=="0" (
+  echo  [完成] 仓库已经推送成功，上面的地址可以直接在手机上打开。
+) else (
+  echo  [未完成] 退出码 %RC%，请看上面的红色提示。
+  echo           常见原因：令牌没有勾选 repo、令牌过期、网络被墙。
+)
+echo.
+pause
