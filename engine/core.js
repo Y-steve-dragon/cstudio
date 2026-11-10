@@ -234,6 +234,7 @@ export class Memory {
     this.stackHigh = REG.stackTop;
     this.blockSorted = [];         // 排序后的堆块索引（惰性重建）
     this.blockDirty = false;
+    this.bus = null;               // 外设总线：芯片模型接管 0x40000000 以上的寄存器
   }
 
   fault(msg) { throw new Fault(msg); }
@@ -265,6 +266,8 @@ export class Memory {
 
   check(addr, len, write = false) {
     if (typeof addr !== 'number' || Number.isNaN(addr)) this.fault('指针地址无效');
+    // 外设地址（如 STM32 的 0x4001_0800 GPIOA）不在这块线性内存里，交给芯片模型
+    if (this.bus && this.bus.covers(addr, len)) return;
     if (addr === 0) this.fault('段错误：解引用空指针（地址 0）');
     if (addr < REG.nullEnd || addr < 0) this.fault(`段错误：非法内存地址 0x${(addr >>> 0).toString(16)}`);
     if (addr + len > this.size) this.fault(`段错误：越界访问（地址 0x${addr.toString(16)} 超出可访问内存上限）`);
@@ -286,6 +289,7 @@ export class Memory {
   }
 
   readInt(addr, size, signed) {
+    if (this.bus && this.bus.covers(addr, size)) return this.bus.read(addr, size, !!signed);
     this.check(addr, size);
     switch (size) {
       case 1: { const v = this.u8[addr]; return signed ? (v << 24) >> 24 : v; }
@@ -300,6 +304,7 @@ export class Memory {
     }
   }
   writeInt(addr, size, v) {
+    if (this.bus && this.bus.covers(addr, size)) { this.bus.write(addr, size, v); return; }
     this.check(addr, size, true);
     v = Math.trunc(v) || 0;
     switch (size) {
@@ -341,10 +346,21 @@ export class Memory {
     this.fault(`无法写入类型 ${typeName(t)}`);
   }
   copy(dst, src, n) {
+    if (this.bus && (this.bus.covers(dst, n) || this.bus.covers(src, n))) {
+      // 目标或源在外设寄存器上：逐字节搬，交给总线处理
+      for (let i = 0; i < n; i++) this.writeInt(dst + i, 1, this.readInt(src + i, 1, false));
+      return;
+    }
     this.check(dst, n, true); this.check(src, n);
     this.u8.copyWithin(dst, src, src + n);
   }
-  fill(addr, n, byte = 0) { this.check(addr, n, true); this.u8.fill(byte, addr, addr + n); }
+  fill(addr, n, byte = 0) {
+    if (this.bus && this.bus.covers(addr, n)) {
+      for (let i = 0; i < n; i++) this.writeInt(addr + i, 1, byte & 0xff);
+      return;
+    }
+    this.check(addr, n, true); this.u8.fill(byte, addr, addr + n);
+  }
 
   staticAlloc(n, align = 1) {
     n = Math.max(1, n);

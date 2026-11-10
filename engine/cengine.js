@@ -52,8 +52,11 @@ const diag = (e, severity = 'error') => ({
  * @param {Object<string,string>} filesObj 文件名 → 内容
  * @param {string} mainName 入口文件名（默认 main.c，找不到则取第一个 .c）
  */
-export function compileSources(filesObj, mainName = 'main.c') {
+export function compileSources(filesObj, mainName = 'main.c', opts = {}) {
   const files = new Map(Object.entries(filesObj));
+  // 芯片/平台自带的系统头文件（如 STM32 的 stm32f10x.h）：只参与预处理，不算工程文件
+  const extra = opts.extraFiles || null;
+  if (extra) for (const [k, v] of Object.entries(extra)) if (!files.has(k)) files.set(k, v);
   if (!files.size) {
     return { ok: false, program: null, diagnostics: [diag({ message: '没有可编译的源文件' })] };
   }

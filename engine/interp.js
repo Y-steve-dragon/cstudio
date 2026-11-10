@@ -14,6 +14,11 @@ export class Interpreter {
     this.io = io;
     this.opts = opts;
     this.mem = new Memory();
+    // 芯片模型（可选）：接管 0x4000_0000 以上的外设寄存器，并提供 tick 驱动
+    if (opts.chip) {
+      this.chip = opts.chip;
+      this.mem.bus = opts.chip;
+    }
     this.fns = program.functions;
     this.fnByName = new Map(program.functions.map((f) => [f.name, f]));
     this.globalByName = new Map(program.globals.map((g) => [g.name, g]));
@@ -583,6 +588,10 @@ export class Interpreter {
       if (pos) { top.line = pos.line; top.file = pos.file; }
     }
     this.steps++;
+    // 芯片模型：每执行若干步推进一次外设时间（SysTick 递减、TIM2 计数）
+    if (this.chip && this.chip.tickEvery && (this.steps % this.chip.tickEvery) === 0) {
+      this.chip.tick(this.chip.tickEvery);
+    }
     if (this.stepLimit && this.steps > this.stepLimit) {
       throw new Fault(`程序执行步数超过上限（${this.stepLimit}），可能是死循环`);
     }

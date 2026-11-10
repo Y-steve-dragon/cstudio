@@ -2005,6 +2005,7 @@ class Memory {
     this.stackHigh = REG.stackTop;
     this.blockSorted = [];         // 排序后的堆块索引（惰性重建）
     this.blockDirty = false;
+    this.bus = null;               // 外设总线：芯片模型接管 0x40000000 以上的寄存器
   }
 
   fault(msg) { throw new Fault(msg); }
@@ -2036,6 +2037,8 @@ class Memory {
 
   check(addr, len, write = false) {
     if (typeof addr !== 'number' || Number.isNaN(addr)) this.fault('指针地址无效');
+    // 外设地址（如 STM32 的 0x4001_0800 GPIOA）不在这块线性内存里，交给芯片模型
+    if (this.bus && this.bus.covers(addr, len)) return;
     if (addr === 0) this.fault('段错误：解引用空指针（地址 0）');
     if (addr < REG.nullEnd || addr < 0) this.fault(`段错误：非法内存地址 0x${(addr >>> 0).toString(16)}`);
     if (addr + len > this.size) this.fault(`段错误：越界访问（地址 0x${addr.toString(16)} 超出可访问内存上限）`);
@@ -2057,6 +2060,7 @@ class Memory {
   }
 
   readInt(addr, size, signed) {
+    if (this.bus && this.bus.covers(addr, size)) return this.bus.read(addr, size, !!signed);
     this.check(addr, size);
     switch (size) {
       case 1: { const v = this.u8[addr]; return signed ? (v << 24) >> 24 : v; }
@@ -2071,6 +2075,7 @@ class Memory {
     }
   }
   writeInt(addr, size, v) {
+    if (this.bus && this.bus.covers(addr, size)) { this.bus.write(addr, size, v); return; }
     this.check(addr, size, true);
     v = Math.trunc(v) || 0;
     switch (size) {
@@ -2112,10 +2117,21 @@ class Memory {
     this.fault(`无法写入类型 ${typeName(t)}`);
   }
   copy(dst, src, n) {
+    if (this.bus && (this.bus.covers(dst, n) || this.bus.covers(src, n))) {
+      // 目标或源在外设寄存器上：逐字节搬，交给总线处理
+      for (let i = 0; i < n; i++) this.writeInt(dst + i, 1, this.readInt(src + i, 1, false));
+      return;
+    }
     this.check(dst, n, true); this.check(src, n);
     this.u8.copyWithin(dst, src, src + n);
   }
-  fill(addr, n, byte = 0) { this.check(addr, n, true); this.u8.fill(byte, addr, addr + n); }
+  fill(addr, n, byte = 0) {
+    if (this.bus && this.bus.covers(addr, n)) {
+      for (let i = 0; i < n; i++) this.writeInt(addr + i, 1, byte & 0xff);
+      return;
+    }
+    this.check(addr, n, true); this.u8.fill(byte, addr, addr + n);
+  }
 
   staticAlloc(n, align = 1) {
     n = Math.max(1, n);
@@ -4351,6 +4367,11 @@ class Interpreter {
     this.io = io;
     this.opts = opts;
     this.mem = new Memory();
+    // 芯片模型（可选）：接管 0x4000_0000 以上的外设寄存器，并提供 tick 驱动
+    if (opts.chip) {
+      this.chip = opts.chip;
+      this.mem.bus = opts.chip;
+    }
     this.fns = program.functions;
     this.fnByName = new Map(program.functions.map((f) => [f.name, f]));
     this.globalByName = new Map(program.globals.map((g) => [g.name, g]));
@@ -4920,6 +4941,10 @@ class Interpreter {
       if (pos) { top.line = pos.line; top.file = pos.file; }
     }
     this.steps++;
+    // 芯片模型：每执行若干步推进一次外设时间（SysTick 递减、TIM2 计数）
+    if (this.chip && this.chip.tickEvery && (this.steps % this.chip.tickEvery) === 0) {
+      this.chip.tick(this.chip.tickEvery);
+    }
     if (this.stepLimit && this.steps > this.stepLimit) {
       throw new Fault(`程序执行步数超过上限（${this.stepLimit}），可能是死循环`);
     }
@@ -6261,8 +6286,11 @@ const diag = (e, severity = 'error') => ({
  * @param {Object<string,string>} filesObj 文件名 → 内容
  * @param {string} mainName 入口文件名（默认 main.c，找不到则取第一个 .c）
  */
-function compileSources(filesObj, mainName = 'main.c') {
+function compileSources(filesObj, mainName = 'main.c', opts = {}) {
   const files = new Map(Object.entries(filesObj));
+  // 芯片/平台自带的系统头文件（如 STM32 的 stm32f10x.h）：只参与预处理，不算工程文件
+  const extra = opts.extraFiles || null;
+  if (extra) for (const [k, v] of Object.entries(extra)) if (!files.has(k)) files.set(k, v);
   if (!files.size) {
     return { ok: false, program: null, diagnostics: [diag({ message: '没有可编译的源文件' })] };
   }
