@@ -130,7 +130,7 @@ function bindSettings() {
   bindCheck('set-close', 'autoClose');
   bindCheck('set-wrap', 'lineWrap', () => editor.applySettings(store.settings));
   bindCheck('set-gutter', 'showGutter', () => editor.applySettings(store.settings));
-  bindCheck('set-symbar', 'symbolBar', () => { $('symbar').hidden = store.settings.symbolBar === false; });
+  bindCheck('set-symbar', 'symbolBar', () => { syncSymbarVisible(); });
   $('btn-clear-bp').addEventListener('click', () => {
     store.clearBreakpoints();
     editor.setBreakpoints([]);
@@ -334,26 +334,97 @@ function renderSamples() {
 }
 
 // ───────────────────────────── 符号栏 ─────────────────────────────
+// 手机上打 {} [] ; " 很麻烦；但一排放不下，所以：可折叠 + 左右滚动（滑动/箭头/滚轮/拖动）。
 const SYMBOLS = [
+  { t: '    ', label: '⇥缩进', wide: true }, { t: '\n', label: '↵换行', wide: true },
+  { t: '/*  */', label: '/* */', wide: true },
   { t: '{', label: '{' }, { t: '}', label: '}' }, { t: '(', label: '(' }, { t: ')', label: ')' },
   { t: '[', label: '[' }, { t: ']', label: ']' }, { t: ';', label: ';' }, { t: '"', label: '"' },
   { t: "'", label: "'" }, { t: ' = ', label: '=' }, { t: '+', label: '+' }, { t: '-', label: '−' },
   { t: '*', label: '*' }, { t: '/', label: '/' }, { t: '%', label: '%' }, { t: '<', label: '<' },
   { t: '>', label: '>' }, { t: '&', label: '&' }, { t: '|', label: '|' }, { t: '!', label: '!' },
-  { t: '#', label: '#' }, { t: ' ? ' , label: '?' }, { t: ' : ', label: ':' }, { t: ',', label: ',' },
-  { t: '.', label: '.' }, { t: '->', label: '→' }, { t: '    ', label: '⇥缩进' }, { t: '\n', label: '↵换行' },
-  { t: '/*  */', label: '/* */' },
+  { t: '#', label: '#' }, { t: ' ? ', label: '?' }, { t: ' : ', label: ':' }, { t: ',', label: ',' },
+  { t: '.', label: '.' }, { t: '->', label: '→' }, { t: ' == ', label: '==' }, { t: ' != ', label: '!=' },
+  { t: ' && ', label: '&&' }, { t: ' || ', label: '||' }, { t: ' <= ', label: '<=' }, { t: ' >= ', label: '>=' },
+  { t: ' += ', label: '+=' }, { t: ' -= ', label: '-=' }, { t: ' ++', label: '++' }, { t: ' --', label: '--' },
+  { t: 'scanf("", );', label: 'scanf' }, { t: 'printf("", );', label: 'printf' }, { t: 'for (;;) {}', label: 'for' },
+  { t: 'if () {}', label: 'if' }, { t: 'while () {}', label: 'while' }, { t: 'return ', label: 'return' },
 ];
+
+let symbarBuilt = false;
+
+function syncSymbarVisible() {
+  const wrap = $('symbar-wrap');
+  if (!wrap) return;
+  wrap.hidden = store.settings.symbolBar === false;
+  // 折叠状态也要在显示时同步（否则设置里关掉再打开会失效）
+  wrap.dataset.open = store.settings.symbarOpen === false ? '0' : '1';
+  syncSymbarChrome();
+}
+
+// 头栏文字/按钮的显示状态（收起时箭头没用，就别占位置）
+function syncSymbarChrome() {
+  const wrap = $('symbar-wrap');
+  const fold = $('symbar-fold');
+  const hint = $('symbar-hint');
+  if (!wrap) return;
+  const open = wrap.dataset.open !== '0';
+  if (fold) {
+    fold.textContent = open ? '收起 ▾' : '展开 ▴';
+    fold.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  if (hint) {
+    if (!open) hint.textContent = '已收起 · 点右侧「展开」';
+    else hint.textContent = '左右滑动 · 点即插入';
+  }
+  if (open) updateSymbarNav();
+}
+
+function setSymbarOpen(open) {
+  const wrap = $('symbar-wrap');
+  if (!wrap) return;
+  wrap.dataset.open = open ? '1' : '0';
+  store.setSetting('symbarOpen', !!open);
+  syncSymbarChrome();
+}
+
+function updateSymbarNav() {
+  const bar = $('symbar');
+  const prev = $('symbar-prev');
+  const next = $('symbar-next');
+  if (!bar || !prev || !next) return;
+  const wrap = $('symbar-wrap');
+  if (wrap && wrap.dataset.open === '0') return;   // 收起时不改头栏提示
+  const max = bar.scrollWidth - bar.clientWidth;
+  prev.disabled = bar.scrollLeft <= 2;
+  next.disabled = bar.scrollLeft >= max - 2;
+  const hint = $('symbar-hint');
+  if (hint) hint.textContent = max > 8 ? '左右滑动 · 点即插入' : '点即插入';
+}
+
+function scrollSymbar(dir, page = 0.75) {
+  const bar = $('symbar');
+  if (!bar) return;
+  // 用即时滚动而不是 smooth：箭头是"翻一页"的离散动作，手机上也更跟手，
+  // 而且不会因为动画被打断而只挪几个像素。
+  const step = Math.max(120, Math.round(bar.clientWidth * page));
+  const max = bar.scrollWidth - bar.clientWidth;
+  bar.scrollLeft = Math.max(0, Math.min(max, bar.scrollLeft + dir * step));
+  updateSymbarNav();
+}
 
 function renderSymbols() {
   const bar = $('symbar');
+  if (!bar) return;
   bar.innerHTML = '';
   for (const s of SYMBOLS) {
     const b = document.createElement('button');
-    b.className = 'sym';
+    b.className = 'sym' + (s.wide ? ' wide' : '');
+    b.type = 'button';
     b.textContent = s.label;
-    const fire = (e) => {
-      e.preventDefault();
+    b.title = s.t.trim() || s.label;
+
+    const fire = () => {
       if (!editor) return;
       editor.focus();
       if (s.t === '/*  */') {
@@ -363,12 +434,89 @@ function renderSymbols() {
       } else {
         editor.insertText(s.t);
       }
+      bar.dataset.touched = '1';
     };
-    b.addEventListener('touchstart', fire, { passive: false });
-    b.addEventListener('click', (e) => { if (!('ontouchstart' in window)) fire(e); });
+
+    // 触屏：只有"点一下"才插入；手指滑过（横向拖动）交给浏览器滚动，
+    // 否则整条符号栏在手机上根本滑不动。
+    let sx = 0, sy = 0, st = 0, moved = false;
+    b.addEventListener('touchstart', (e) => {
+      const t = e.touches[0];
+      sx = t.clientX; sy = t.clientY; st = Date.now(); moved = false;
+    }, { passive: true });
+    b.addEventListener('touchmove', (e) => {
+      const t = e.touches[0];
+      if (Math.abs(t.clientX - sx) > 8 || Math.abs(t.clientY - sy) > 8) moved = true;
+    }, { passive: true });
+    b.addEventListener('touchend', (e) => {
+      if (moved || Date.now() - st > 700) return;   // 滑动或长按：滚动，不插入
+      e.preventDefault();                            // 避免再触发一次 click
+      fire();
+    }, { passive: false });
+    b.addEventListener('click', (e) => {
+      if ('ontouchstart' in window) return;          // 触屏已由 touchend 处理
+      e.preventDefault();
+      fire();
+    });
     bar.appendChild(b);
   }
-  bar.hidden = store.settings.symbolBar === false;
+  symbarBuilt = true;
+  syncSymbarVisible();
+  updateSymbarNav();
+}
+
+function bindSymbar() {
+  const bar = $('symbar');
+  const head = $('symbar-head');
+  const fold = $('symbar-fold');
+  if (!bar || !head || !fold) return;
+
+  fold.addEventListener('click', () => setSymbarOpen($('symbar-wrap').dataset.open === '0'));
+  // 点"符号"标题也能折叠（整条头栏点上去，但避开按钮）
+  head.addEventListener('click', (e) => {
+    if (e.target.closest('button')) return;
+    setSymbarOpen($('symbar-wrap').dataset.open === '0');
+  });
+
+  $('symbar-prev').addEventListener('click', () => scrollSymbar(-1));
+  $('symbar-next').addEventListener('click', () => scrollSymbar(1));
+
+  bar.addEventListener('scroll', updateSymbarNav, { passive: true });
+
+  // 桌面：鼠标滚轮转成横向滚动
+  bar.addEventListener('wheel', (e) => {
+    if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+    const max = bar.scrollWidth - bar.clientWidth;
+    if (max <= 0) return;
+    bar.scrollLeft += e.deltaY;
+    e.preventDefault();
+  }, { passive: false });
+
+  // 桌面：按住空白处拖动（手机上不需要，交给原生滚动）
+  let dragging = false, startX = 0, startLeft = 0;
+  bar.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'touch') return;
+    if (e.target.closest('.sym')) return;
+    dragging = true; startX = e.clientX; startLeft = bar.scrollLeft;
+    bar.classList.add('grabbing');
+  });
+  window.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    bar.scrollLeft = startLeft - (e.clientX - startX);
+  });
+  window.addEventListener('pointerup', () => {
+    if (!dragging) return;
+    dragging = false;
+    bar.classList.remove('grabbing');
+  });
+
+  // 键盘：在符号栏上左右箭头滚动
+  bar.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight') { scrollSymbar(1, 0.4); e.preventDefault(); }
+    if (e.key === 'ArrowLeft') { scrollSymbar(-1, 0.4); e.preventDefault(); }
+  });
+
+  window.addEventListener('resize', updateSymbarNav);
 }
 
 // ───────────────────────────── 控制台 / 面板 ─────────────────────────────
@@ -788,6 +936,7 @@ function boot() {
   renderTabs();
   renderSamples();
   renderSymbols();
+  bindSymbar();
   setVars(null);
   setStack(null);
   openFile(store.activeFile);

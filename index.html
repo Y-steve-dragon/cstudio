@@ -101,7 +101,16 @@
       <button class="mini" id="find-replace-all" title="全部替换">全部</button>
       <button class="mini" id="find-close" title="关闭">✕</button>
     </div>
-    <div class="symbar" id="symbar"></div>
+    <div class="symbar-wrap" id="symbar-wrap" data-open="1">
+      <div class="symbar-head" id="symbar-head">
+        <span class="symbar-title">符号</span>
+        <button type="button" class="symnav" id="symbar-prev" aria-label="向左滚动" title="向左滚动">‹</button>
+        <span class="symbar-hint" id="symbar-hint">左右滑动 · 点即插入</span>
+        <button type="button" class="symnav" id="symbar-next" aria-label="向右滚动" title="向右滚动">›</button>
+        <button type="button" class="symbar-fold" id="symbar-fold" aria-expanded="true" aria-controls="symbar">收起 ▾</button>
+      </div>
+      <div class="symbar" id="symbar" role="toolbar" aria-label="常用符号"></div>
+    </div>
   </section>
 </main>
 

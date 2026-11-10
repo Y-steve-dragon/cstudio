@@ -197,6 +197,7 @@ const DEFAULT_STATE = {
     lineWrap: false,
     showGutter: true,
     symbolBar: true,
+    symbarOpen: true,
   },
   breakpoints: {}, // 文件名 → [行号]
 };

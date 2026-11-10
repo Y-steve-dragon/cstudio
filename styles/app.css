@@ -10,6 +10,7 @@
 
 /* ── 深色（默认） ── */
 :root, [data-theme="dark"] {
+  color-scheme: dark;
   --bg: #11161c;
   --bg-2: #161d25;
   --bg-3: #1d2530;
@@ -41,6 +42,7 @@
 
 /* ── 浅色 ── */
 [data-theme="light"] {
+  color-scheme: light;
   --bg: #f7f9fc;
   --bg-2: #ffffff;
   --bg-3: #eef2f7;
@@ -72,6 +74,7 @@
 
 /* ── 暗夜蓝 ── */
 [data-theme="midnight"] {
+  color-scheme: dark;
   --bg: #0b1220;
   --bg-2: #111b2d;
   --bg-3: #17233a;
@@ -392,6 +395,12 @@ button { font-family: inherit; font-size: inherit; color: inherit; }
   z-index: 2;
 }
 .ed-ta::selection { background: var(--sel); -webkit-text-fill-color: transparent; }
+/* 编辑器自己的滚动条也跟主题走，否则暗色界面上会冒出一条亮灰条 */
+.ed-ta { scrollbar-width: thin; scrollbar-color: var(--bg-4) transparent; }
+.ed-ta::-webkit-scrollbar { width: 7px; height: 7px; }
+.ed-ta::-webkit-scrollbar-thumb { background: var(--bg-4); border-radius: 4px; }
+.ed-ta::-webkit-scrollbar-track { background: transparent; }
+.ed-ta::-webkit-scrollbar-corner { background: transparent; }
 .wrap .ed-hl, .wrap .ed-ta { white-space: pre-wrap; word-break: break-word; }
 .ed-current {
   position: absolute; left: 0; right: 0; top: 8px;
@@ -427,24 +436,65 @@ button { font-family: inherit; font-size: inherit; color: inherit; }
 }
 .findbar input:focus { outline: 1px solid var(--accent); }
 
-/* ── 符号栏 ── */
-.symbar {
-  display: flex; gap: 4px; overflow-x: auto;
-  padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
-  background: var(--bg-2);
-  border-top: 1px solid var(--line);
+/* ── 符号栏（可折叠 + 可左右滚动）── */
+.symbar-wrap {
   flex: 0 0 auto;
-  scrollbar-width: none;
+  border-top: 1px solid var(--line);
+  background: var(--bg-2);
 }
-.symbar::-webkit-scrollbar { display: none; }
+.symbar-wrap[hidden] { display: none !important; }
+
+.symbar-head {
+  display: flex; align-items: center; gap: 6px;
+  padding: 3px 8px 2px;
+  font: 11px/1.4 var(--sans); color: var(--fg-faint);
+  user-select: none;
+}
+.symbar-title { color: var(--fg-dim); font-weight: 600; letter-spacing: .04em; }
+.symbar-hint { flex: 1 1 auto; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.symnav, .symbar-fold {
+  flex: 0 0 auto;
+  height: 22px; padding: 0 8px;
+  border-radius: 6px; border: 1px solid var(--line);
+  background: var(--bg-3); color: var(--fg-dim);
+  font: 12px/1 var(--sans); cursor: pointer;
+}
+.symnav { width: 26px; padding: 0; font-size: 15px; line-height: 20px; }
+.symnav:active, .symbar-fold:active { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.symnav[disabled] { opacity: .35; }
+.symbar-fold { min-width: 56px; }
+
+.symbar {
+  display: flex; gap: 4px;
+  overflow-x: auto; overflow-y: hidden;
+  padding: 2px 8px calc(6px + env(safe-area-inset-bottom));
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--bg-4) transparent;
+  /* 两端渐隐，提示"后面还有" */
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 10px, #000 calc(100% - 10px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 10px, #000 calc(100% - 10px), transparent 100%);
+}
+.symbar::-webkit-scrollbar { height: 4px; }
+.symbar::-webkit-scrollbar-thumb { background: var(--bg-4); border-radius: 2px; }
+.symbar::-webkit-scrollbar-track { background: transparent; }
+.symbar-wrap[data-open="0"] .symbar { display: none; }
+.symbar-wrap[data-open="0"] .symnav { display: none; }
+.symbar-wrap[data-open="0"] .symbar-fold { color: var(--fg-dim); }
+
 .sym {
   flex: 0 0 auto;
   min-width: 38px; height: 34px;
   border-radius: 8px; border: 1px solid var(--line);
   background: var(--bg-3); color: var(--fg);
   font-family: var(--mono); font-size: 14px; cursor: pointer;
+  scroll-snap-align: start;
+  touch-action: pan-x;          /* 允许横向滑动滚动，而不是被按钮吃掉 */
 }
 .sym:active { background: var(--accent); color: var(--accent-fg); }
+.sym.wide { min-width: 58px; font-size: 12px; }
+.symbar.grabbing { cursor: grabbing; }
 
 /* ── 控制台 ── */
 .console {
