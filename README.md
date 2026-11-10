@@ -17,6 +17,7 @@
 
 1. 用 **USB 数据线**把手机连电脑，把这个 `palm-c-offline.html` 拷进手机的「下载」目录。
    （也可以先发到微信/QQ 的「文件传输助手」，手机上下载下来；之后就一直不用网了。）
+   懒得连线也行：直接在手机上打开 <https://github.com/Y-steve-dragon/cstudio/releases/download/v1.0.0/palm-c-offline.html> 下载。
 2. 手机上用**浏览器**（Chrome / Edge / 夸克 / 系统自带都行）打开这个文件：
    文件管理器里点一下这个 html，选「用浏览器打开」。
 3. 之后就能直接写、直接跑。**没有服务器、没有网络、没有安装包**，飞机上、地铁里都能用。
