@@ -1,0 +1,14 @@
+# 开发过程产物，不用进版本库
+.dev-tmp/
+.shots/
+node_modules/
+*.log
+.dsh-patch-backup/
+
+# 系统垃圾
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 浏览器测试用的临时配置文件（如果在本目录里跑无头浏览器）
+.edge-profile-*/

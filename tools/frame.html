@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>手机尺寸预览</title>
+<style>
+  html,body{margin:0;background:#0a0d11;}
+  #box{position:absolute;left:0;top:0;width:390px;height:844px;overflow:hidden;border-right:1px solid #222;border-bottom:1px solid #222}
+  iframe{width:390px;height:844px;border:0;display:block}
+</style></head>
+<body>
+<div id="box"><iframe id="fr" src="/"></iframe></div>
+<script>
+  // 用真实的 390x844 iframe 渲染，避免无头浏览器 --window-size 不起作用导致截图被裁
+  document.getElementById('fr').addEventListener('load', () => {
+    setTimeout(() => {
+      const w = document.getElementById('fr').contentWindow;
+      const doc = w.document;
+      const lbl = doc.querySelector('#btn-run .lbl');
+      const acts = doc.querySelector('.actions').getBoundingClientRect();
+      document.title = `FRAME iw=${w.innerWidth} mq=${w.matchMedia('(max-width: 420px)').matches} lbl=${getComputedStyle(lbl).display} actionsRight=${acts.right.toFixed(0)} sw=${doc.documentElement.scrollWidth}`;
+    }, 800);
+  });
+</script>
+</body>
+</html>

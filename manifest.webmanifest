@@ -1,0 +1,29 @@
+{
+  "name": "掌心 C · 手机 C 语言练习场",
+  "short_name": "掌心 C",
+  "description": "在手机上写 C 语言、编译、运行、调试。自带解释执行引擎，完全离线。",
+  "id": "/cstudio/",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#11161c",
+  "theme_color": "#11161c",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "categories": ["education", "developer", "productivity"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "shortcuts": [
+    {
+      "name": "新建 C 程序",
+      "short_name": "新建",
+      "url": "./?new=1"
+    }
+  ]
+}

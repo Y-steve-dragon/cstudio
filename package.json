@@ -1,0 +1,11 @@
+{
+  "name": "cstudio-phone-ide",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "掌心 C · 手机上的 C 语言 IDE（自带编译执行引擎，离线可用）",
+  "scripts": {
+    "test": "node tests/run.mjs",
+    "serve": "node serve.mjs"
+  }
+}

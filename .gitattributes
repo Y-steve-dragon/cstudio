@@ -1,0 +1,18 @@
+# 统一换行符，避免 Windows / macOS 互相改动整份文件
+* text=auto
+
+# Windows 批处理必须 CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Shell / Node 脚本用 LF
+*.sh text eol=lf
+*.mjs text eol=lf
+*.js text eol=lf
+
+# 二进制，别做文本转换
+*.png binary
+*.ico binary
+*.jpg binary
+*.webp binary
+*.woff2 binary

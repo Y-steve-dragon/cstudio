@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>掌心 C · 引擎端到端冒烟测试</title>
+<style>body{font:14px/1.5 monospace;background:#111;color:#eee;padding:12px}pre{white-space:pre-wrap}</style>
+</head>
+<body>
+<h3>引擎冒烟测试（浏览器内跑 Worker）</h3>
+<pre id="log">running…</pre>
+<script type="module">
+const log = (s) => { document.getElementById('log').textContent += '\n' + s; };
+const results = [];
+
+function runWorker(files, main, extra = {}) {
+  return new Promise((resolve) => {
+    const w = new Worker('../engine/worker.js', { type: 'module' });
+    let out = '';
+    let settled = false;
+    const finish = (r) => { if (!settled) { settled = true; w.terminate(); resolve(r); } };
+    w.onerror = (e) => finish({ ok: false, error: 'worker 错误: ' + (e.message || e.type), output: out });
+    w.onmessage = (e) => {
+      const m = e.data;
+      if (m.type === 'out') out += m.text;
+      else if (m.type === 'input-request') w.postMessage({ type: 'input', text: (extra.inputs || []).shift() ?? '0' });
+      else if (m.type === 'exit') { /* 等 done */ }
+      else if (m.type === 'error') finish({ ok: false, error: m.error, output: out + (m.output || '') });
+      else if (m.type === 'done') finish({ ok: m.ok, exitCode: m.exitCode, output: out, stopped: m.stopped });
+      else if (m.type === 'compile') { if (!m.ok) { /* 等 done */ } }
+    };
+    w.postMessage({ type: 'start', files, main, mode: extra.mode || 'run', breakpoints: extra.breakpoints || [], stepLimit: 20000000, deadlineMs: 20000 });
+    setTimeout(() => finish({ ok: false, error: '超时未结束', output: out }), 200000);
+  });
+}
+
+const sample = `#include <stdio.h>
+int fib(int n) { return n < 2 ? n : fib(n-1) + fib(n-2); }
+int main(void) {
+    for (int i = 0; i < 6; i++) printf("%d ", fib(i));
+    printf("\\n");
+    char *s = "hello";
+    printf("%s %d %.2f %c\\n", s, 42, 3.14159, 'A');
+    int a[3] = {1,2,3};
+    printf("%d %d %d\\n", a[0], a[1], a[2]);
+    return 0;
+}`;
+
+const [r1, r2, r3] = await Promise.all([
+  runWorker({ 'main.c': sample }, 'main.c'),
+  runWorker({ 'main.c': '#include <stdio.h>\nint main(void){int a,b;scanf("%d %d",&a,&b);printf("%d\\n",a*b);return 0;}' }, 'main.c', { inputs: ['6 7'] }),
+  runWorker({ 'main.c': 'int main(void){ int *p = 0; *p = 1; return 0; }' }, 'main.c'),
+]);
+
+const check = (name, got, want) => {
+  const pass = typeof want === 'function' ? want(got) : got === want;
+  results.push({ name, pass, got });
+  log((pass ? 'PASS ' : 'FAIL ') + name + (pass ? '' : ' → ' + JSON.stringify(got)));
+};
+
+log('r1=' + JSON.stringify(r1) + '\nr2=' + JSON.stringify(r2) + '\nr3=' + JSON.stringify(r3));
+check('递归 + printf 格式化', r1.output, '0 1 1 2 3 5 \nhello 42 3.14 A\n1 2 3\n');
+check('scanf 交互', r2.output, '42\n');
+check('空指针写入要报错', r3.ok, false);
+check('空指针错误信息可读', (r3.error && r3.error.message) || r3.error || '', (e) => /空指针|段错误|无效/.test(e));
+
+const failed = results.filter((r) => !r.pass).length;
+log(`\n结果：${results.length - failed} / ${results.length} 通过`);
+document.title = failed === 0 ? 'SMOKE-OK' : 'SMOKE-FAIL-' + failed;
+</script>
+</body>
+</html>

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>布局诊断</title>
+<style>body{font:13px/1.5 monospace;background:#111;color:#eee;margin:0;padding:10px}pre{white-space:pre-wrap}</style>
+</head>
+<body>
+<h3>布局诊断（在 iframe 里加载首页并测量）</h3>
+<pre id="log">测量中…</pre>
+<iframe id="fr" src="/" style="width:390px;height:844px;border:0;position:absolute;left:-9999px"></iframe>
+<script>
+const log = (s) => { document.getElementById('log').textContent += '\n' + s; };
+const fr = document.getElementById('fr');
+fr.addEventListener('load', () => {
+  setTimeout(() => {
+    try {
+      const doc = fr.contentDocument;
+      const de = doc.documentElement;
+      const vw = fr.contentWindow.innerWidth;
+      log('视口宽 = ' + vw);
+      log('documentElement.scrollWidth = ' + de.scrollWidth);
+      log('body.scrollWidth = ' + doc.body.scrollWidth);
+      const wide = [];
+      for (const el of doc.body.querySelectorAll('*')) {
+        const r = el.getBoundingClientRect();
+        if (r.right > vw + 0.5 || r.left < -0.5) {
+          wide.push(`${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).join('.') : ''} left=${r.left.toFixed(0)} right=${r.right.toFixed(0)} w=${r.width.toFixed(0)}`);
+        }
+      }
+      log('超出视口的元素（前 25 个）：');
+      for (const w of wide.slice(0, 25)) log('  ' + w);
+      if (!wide.length) log('  无');
+      const top = doc.querySelector('.topbar');
+      const acts = doc.querySelector('.actions');
+      log('topbar 宽 = ' + top.getBoundingClientRect().width);
+      log('actions 宽 = ' + acts.getBoundingClientRect().width + '  right=' + acts.getBoundingClientRect().right.toFixed(0));
+      for (const sel of ['#btn-menu', '.brand', '#cur-file', '#btn-search', '#btn-run', '#btn-debug', '#btn-stop']) {
+        const el = doc.querySelector(sel);
+        if (!el) { log(sel + ' 不存在'); continue; }
+        const r = el.getBoundingClientRect();
+        const cs = fr.contentWindow.getComputedStyle(el);
+        log(`${sel}: left=${r.left.toFixed(1)} w=${r.width.toFixed(1)} display=${cs.display} hidden=${el.hidden} lbl=${el.textContent.trim().replace(/\s+/g, '|')}`);
+      }
+      const lbl = doc.querySelector('#btn-run .lbl');
+      log('#btn-run .lbl display = ' + fr.contentWindow.getComputedStyle(lbl).display);
+      const sheet = fr.contentDocument.styleSheets[0];
+      log('样式表规则数 = ' + (sheet ? sheet.cssRules.length : '无法读取'));
+      const mqs = [];
+      if (sheet) for (const r of sheet.cssRules) if (r.type === 4) mqs.push(r.conditionText + ' {' + r.cssRules.length + ' 条}');
+      log('媒体查询：' + JSON.stringify(mqs));
+      log('是否匹配 current width: ' + fr.contentWindow.matchMedia('(max-width: 420px)').matches);
+      document.title = 'DIAG-DONE';
+    } catch (e) {
+      log('诊断失败：' + e.message);
+      document.title = 'DIAG-ERR';
+    }
+  }, 1200);
+});
+</script>
+</body>
+</html>

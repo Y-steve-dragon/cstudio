@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>界面端到端测试</title>
+<style>
+  html,body{margin:0;background:#0a0d11;color:#ddd;font:12px/1.5 monospace}
+  #box{position:absolute;left:0;top:0;width:390px;height:844px;overflow:hidden;border-right:1px solid #222}
+  iframe{width:390px;height:844px;border:0;display:block}
+  pre{position:absolute;left:396px;top:0;margin:0;padding:8px;width:360px;height:830px;overflow:auto;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<div id="box"><iframe id="fr" src="/?inline=1"></iframe></div>
+<pre id="log"></pre>
+<script>
+const logEl = document.getElementById('log');
+const lines = [];
+const results = [];
+function log(s) { lines.push(s); logEl.textContent = lines.join('\n'); }
+function check(name, pass, detail) {
+  results.push({ name, pass });
+  log((pass ? 'PASS ' : 'FAIL ') + name + (pass ? '' : ' -> ' + (detail ?? '')));
+}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function until(fn, timeout = 12000, step = 50) {
+  const t0 = Date.now();
+  for (;;) {
+    let v = null;
+    try { v = fn(); } catch (e) { v = null; }
+    if (v) return v;
+    if (Date.now() - t0 > timeout) return null;
+    await sleep(step);
+  }
+}
+
+const fr = document.getElementById('fr');
+const W = () => fr.contentWindow;
+const D = () => fr.contentDocument;
+const $ = (sel) => D().querySelector(sel);
+const text = (sel) => ($(sel) ? $(sel).textContent : '');
+const visible = (sel) => { const e = $(sel); return !!e && !e.hidden && e.getBoundingClientRect().width > 0; };
+function click(sel) {
+  const el = $(sel);
+  if (!el) throw new Error('找不到元素 ' + sel);
+  el.dispatchEvent(new (W().MouseEvent)('click', { bubbles: true, cancelable: true, view: W() }));
+}
+function typeInto(sel, val) {
+  const el = $(sel);
+  if (!el) throw new Error('找不到元素 ' + sel);
+  el.value = val;
+  el.dispatchEvent(new (W().Event)('input', { bubbles: true }));
+}
+
+async function main() {
+  await new Promise((r) => (fr.contentDocument && D().readyState === 'complete' ? r() : fr.addEventListener('load', r, { once: true })));
+  await until(() => D().querySelector('.ed-ta'), 15000);
+  await sleep(300);
+
+  // 1. 初始界面
+  const ta = $('.ed-ta');
+  check('编辑器已挂载并有默认代码', !!ta && ta.value.includes('Hello, C!'), ta ? ta.value.slice(0, 40) : 'no editor');
+  check('顶栏显示当前文件名', text('#cur-file') === 'main.c', text('#cur-file'));
+  check('初始不显示查找栏/调试条/输入条/弹窗',
+    !visible('#findbar') && !visible('#debugbar') && !visible('#inputbar') && !visible('#modal'), '有元素提前显示');
+  check('初始控制台显示就绪提示', text('#out').includes('就绪'), text('#out').slice(0, 40));
+
+  // 0'. 预热：第一次运行要加载引擎模块，先单独跑一次并等它收尾
+  click('#btn-run');
+  const warm = await until(() => /运行结束|调试结束|运行失败/.test(text('#out')), 180000);
+  log('[预热] ' + (warm ? '完成' : '超时未完成'));
+  await until(() => !$('#btn-run').disabled, 20000);
+  click('#btn-clear-out');
+  await sleep(100);
+
+  // 2. 运行内置示例
+  click('#btn-run');
+  const ran = await until(() => text('#out').includes('Hello, C!'), 120000);
+  check('点「运行」后输出 Hello, C!', !!ran, text('#out').slice(0, 120));
+  check('运行后没有伪问题标记', !visible('#problem-badge'), '问题角标仍可见');
+  const sumOk = await until(() => text('#out').includes('55') && text('#out').includes('3.1416'), 120000);
+  check('格式化输出正确（求和 55 / 保留 4 位小数）', !!sumOk, text('#out').slice(0, 200));
+
+  // 3. 改代码再运行（编辑器 -> 存储 -> 引擎 全链路）
+  const code2 = '#include <stdio.h>\nint main(void){\n    int n = 0;\n    for (int i = 1; i <= 6; i++) n += i * i;\n    printf("平方和=%d\\n", n);\n    return 0;\n}\n';
+  ta.value = code2;
+  ta.dispatchEvent(new (W().Event)('input', { bubbles: true }));
+  click('#btn-run');
+  const sumSq = await until(() => text('#out').includes('平方和=91'), 120000);
+  check('改代码后重新运行结果正确（平方和=91）', !!sumSq, text('#out').slice(-160));
+
+  // 4. 查找
+  click('#btn-search');
+  const findShown = await until(() => visible('#findbar'));
+  check('点查找后查找栏出现', !!findShown, 'findbar 未出现');
+  typeInto('#find-input', 'printf');
+  click('#find-next');
+  const selEl = await until(() => { const v = $('.ed-ta'); return v.selectionStart !== v.selectionEnd ? v : null; });
+  const selText = selEl ? $('.ed-ta').value.slice($('.ed-ta').selectionStart, $('.ed-ta').selectionEnd) : '';
+  check('查找能选中 printf', selText === 'printf', JSON.stringify(selText));
+  click('#find-close');
+
+  // 5. 断点 + 调试
+  click('#btn-menu');
+  await until(() => $('.sidebar').classList.contains('open'));
+  check('菜单能打开侧栏', $('.sidebar').classList.contains('open'), '侧栏没打开');
+  click('#btn-menu');
+
+  click('.ed-lines .ln[data-line="3"]');
+  const bpSet = await until(() => $('.ed-lines .ln[data-line="3"]').classList.contains('has-bp'));
+  check('点击行号能加断点', !!bpSet, '没加上断点');
+
+  click('#btn-debug');
+  const paused = await until(() => visible('#debugbar') && $('.ed-lines .ln.is-paused'), 15000);
+  check('调试模式在断点处暂停', !!paused,
+    '调试条=' + visible('#debugbar') + ' 暂停行=' + !!$('.ed-lines .ln.is-paused'));
+  if (paused) {
+    check('暂停时能看到变量面板', text('#vars').length > 0, '变量面板为空');
+    check('调试条显示暂停位置', /\d/.test(text('#dbg-pos')) || text('#dbg-pos').includes('main.c'), JSON.stringify(text('#dbg-pos')));
+    click('#dbg-stepover');
+    await sleep(300);
+    check('单步后仍在调试中', visible('#debugbar'), '调试条消失了');
+    click('#dbg-stop');
+    const stopped = await until(() => !visible('#debugbar'), 8000);
+    check('点停止后调试结束', !!stopped, '调试条还在');
+  }
+
+  // 6. 新建文件（弹窗 -> 文件名 -> 确定）
+  const before = D().querySelectorAll('#file-list .file-row').length;
+  click('#btn-menu');
+  await until(() => $('.sidebar').classList.contains('open'));
+  click('#btn-new-file');
+  const modalShown = await until(() => visible('#modal') && $('.modal-input'));
+  check('新建文件会弹出输入框', !!modalShown, '弹窗没出现');
+  if (modalShown) {
+    typeInto('.modal-input', 'extra.c');
+    click('#modal-ok');
+    const added = await until(() => D().querySelectorAll('#file-list .file-row').length > before);
+    check('新建文件后文件列表增加', !!added, '文件数没变');
+    check('新建的文件名正确', text('#file-list').includes('extra.c'), text('#file-list'));
+  }
+
+  // 7. 切换示例
+  click('#btn-menu');
+  await until(() => $('.sidebar').classList.contains('open'));
+  const rows = D().querySelectorAll('#sample-list .sample-row');
+  check('示例列表有 6 个示例', rows.length === 6, '数量 ' + rows.length);
+  if (rows.length) {
+    rows[1].dispatchEvent(new (W().MouseEvent)('click', { bubbles: true, view: W() }));
+    const loaded = await until(() => $('.ed-ta').value.includes('struct'));
+    check('点示例能载入对应代码', !!loaded, $('.ed-ta').value.slice(0, 60));
+  }
+
+  // 8. 死循环能被停止
+  const idle = await until(() => !$('#btn-run').disabled, 15000);
+  check('上一轮运行已收尾（可再次运行）', !!idle, '按钮仍处于禁用状态');
+  $('.ed-ta').value = '#include <stdio.h>\nint main(void){ volatile long x = 0; while (1) { x++; } return 0; }\n';
+  $('.ed-ta').dispatchEvent(new (W().Event)('input', { bubbles: true }));
+  click('#btn-run');
+  const btnVisible = await until(() => visible('#btn-stop'), 8000);
+  check('运行中显示停止按钮', !!btnVisible, 'btn-stop.hidden=' + $('#btn-stop').hidden + ' run.disabled=' + $('#btn-run').disabled);
+  click('#btn-stop');
+  const ended = await until(() => !visible('#btn-stop'), 15000);
+  check('点停止能中断死循环', !!ended, '还在运行');
+
+  const failed = results.filter((r) => !r.pass).length;
+  log('\n结果：' + (results.length - failed) + ' / ' + results.length + ' 通过');
+  document.title = failed === 0 ? 'E2E-OK' : 'E2E-FAIL-' + failed;
+}
+
+main().catch((e) => {
+  log('测试本身出错：' + (e && e.stack ? e.stack : e));
+  document.title = 'E2E-ERR';
+});
+</script>
+</body>
+</html>

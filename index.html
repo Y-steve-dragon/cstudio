@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#11161c">
+<meta name="description" content="掌心 C —— 在手机上写 C 语言、编译、运行和调试。完全离线，自带解释执行引擎。">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="掌心 C">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles/app.css">
+<title>掌心 C · 手机 C 语言练习场</title>
+</head>
+<body>
+<header class="topbar">
+  <button class="icon-btn" id="btn-menu" title="文件与设置" aria-label="打开文件列表">☰</button>
+  <div class="brand">
+    <span class="logo">C</span>
+    <span class="fname" id="cur-file">main.c</span>
+  </div>
+  <div class="actions">
+    <button class="icon-btn" id="btn-search" title="查找替换" aria-label="查找替换">🔍</button>
+    <button class="btn primary" id="btn-run" title="编译并运行 (Ctrl+Enter)"><span class="ico">▶</span><span class="lbl">运行</span></button>
+    <button class="btn" id="btn-debug" title="调试（断点/单步）"><span class="ico">🐞</span><span class="lbl">调试</span></button>
+    <button class="btn danger" id="btn-stop" hidden><span class="ico">■</span><span class="lbl">停止</span></button>
+  </div>
+</header>
+
+<main id="main">
+  <aside class="sidebar" id="sidebar">
+    <div class="side-section">
+      <div class="side-head">
+        <span>源文件</span>
+        <div class="side-btns">
+          <button class="mini" id="btn-new-file" title="新建文件">＋</button>
+          <button class="mini" id="btn-import" title="导入项目 (JSON)">⇩</button>
+          <button class="mini" id="btn-export" title="导出项目 (JSON)">⇧</button>
+        </div>
+      </div>
+      <ul class="file-list" id="file-list"></ul>
+    </div>
+
+    <div class="side-section">
+      <div class="side-head"><span>示例</span></div>
+      <ul class="sample-list" id="sample-list"></ul>
+    </div>
+
+    <div class="side-section">
+      <div class="side-head"><span>设置</span></div>
+      <div class="settings" id="settings">
+        <label class="row"><span>主题</span>
+          <select id="set-theme">
+            <option value="dark">深色</option>
+            <option value="light">浅色</option>
+            <option value="midnight">暗夜蓝</option>
+          </select>
+        </label>
+        <label class="row"><span>字号</span>
+          <span class="stepper">
+            <button class="mini" id="font-dec">－</button>
+            <b id="font-val">14</b>
+            <button class="mini" id="font-inc">＋</button>
+          </span>
+        </label>
+        <label class="row"><span>缩进空格</span>
+          <select id="set-tab">
+            <option value="2">2</option>
+            <option value="4">4</option>
+            <option value="8">8</option>
+          </select>
+        </label>
+        <label class="row switch"><span>自动缩进</span><input type="checkbox" id="set-indent" checked></label>
+        <label class="row switch"><span>括号自动补全</span><input type="checkbox" id="set-close" checked></label>
+        <label class="row switch"><span>自动换行</span><input type="checkbox" id="set-wrap"></label>
+        <label class="row switch"><span>显示行号</span><input type="checkbox" id="set-gutter" checked></label>
+        <label class="row switch"><span>符号栏</span><input type="checkbox" id="set-symbar" checked></label>
+        <div class="row btns">
+          <button class="mini wide" id="btn-clear-bp">清除所有断点</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-foot">
+      <div class="hint">引擎版本 <b id="engine-ver">—</b></div>
+      <div class="hint">完全离线运行，代码只存在你的手机里</div>
+    </div>
+  </aside>
+
+  <section class="workspace" id="workspace">
+    <div class="tabs" id="tabs"></div>
+    <div class="editor" id="editor"></div>
+    <div class="findbar" id="findbar" hidden>
+      <input id="find-input" placeholder="查找…" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <input id="replace-input" placeholder="替换为…" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <button class="mini" id="find-prev" title="上一个">↑</button>
+      <button class="mini" id="find-next" title="下一个">↓</button>
+      <button class="mini" id="find-replace" title="替换">换</button>
+      <button class="mini" id="find-replace-all" title="全部替换">全部</button>
+      <button class="mini" id="find-close" title="关闭">✕</button>
+    </div>
+    <div class="symbar" id="symbar"></div>
+  </section>
+</main>
+
+<section class="console" id="console" data-open="true">
+  <div class="console-head">
+    <div class="ptabs" role="tablist">
+      <button class="ptab active" data-panel="out">控制台</button>
+      <button class="ptab" data-panel="problems">问题 <b id="problem-badge" hidden>0</b></button>
+      <button class="ptab" data-panel="vars">变量</button>
+      <button class="ptab" data-panel="stack">调用栈</button>
+    </div>
+    <div class="console-btns">
+      <button class="mini" id="btn-clear-out" title="清空输出">清空</button>
+      <button class="mini" id="btn-toggle-console" title="收起/展开">▾</button>
+    </div>
+  </div>
+  <div class="console-body">
+    <pre class="out" id="out" data-panel="out">就绪。点右上角「▶ 运行」编译并执行当前程序。
+</pre>
+    <div class="problems" id="problems" data-panel="problems" hidden></div>
+    <div class="vars" id="vars" data-panel="vars" hidden></div>
+    <div class="stackview" id="stack" data-panel="stack" hidden></div>
+  </div>
+  <div class="inputbar" id="inputbar" hidden>
+    <span class="in-label">输入</span>
+    <input id="stdin" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="按回车发送这一行">
+    <button class="mini" id="btn-eof" title="输入结束 (EOF)">EOF</button>
+    <button class="mini primary" id="btn-send">发送</button>
+  </div>
+</section>
+
+<div class="debugbar" id="debugbar" hidden>
+  <span class="dbg-pos" id="dbg-pos">已暂停</span>
+  <button class="mini" id="dbg-continue" title="继续运行 F5">继续</button>
+  <button class="mini" id="dbg-stepin" title="单步进入 F11">进入</button>
+  <button class="mini" id="dbg-stepover" title="单步跳过 F10">跳过</button>
+  <button class="mini" id="dbg-stepout" title="跳出 Shift+F11">跳出</button>
+  <button class="mini danger" id="dbg-stop" title="停止调试">停止</button>
+</div>
+
+<div class="mask" id="mask" hidden></div>
+
+<div class="modal" id="modal" hidden>
+  <div class="modal-box">
+    <div class="modal-title" id="modal-title">标题</div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-btns">
+      <button class="mini" id="modal-cancel">取消</button>
+      <button class="mini primary" id="modal-ok">确定</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>运行与停止诊断</title>
+<style>
+  html,body{margin:0;background:#0a0d11;color:#ddd;font:12px/1.5 monospace}
+  #box{position:absolute;left:0;top:0;width:390px;height:844px;overflow:hidden}
+  iframe{width:390px;height:844px;border:0;display:block}
+  pre{position:absolute;left:396px;top:0;margin:0;padding:8px;width:420px;height:830px;overflow:auto;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<div id="box"><iframe id="fr" src="/"></iframe></div>
+<pre id="log"></pre>
+<script>
+const logEl = document.getElementById('log');
+const lines = [];
+const out = (s) => { lines.push(s); logEl.textContent = lines.join('\n'); };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const fr = document.getElementById('fr');
+const W = () => fr.contentWindow;
+const D = () => fr.contentDocument;
+const $ = (sel) => D().querySelector(sel);
+
+function click(sel) {
+  const el = $(sel);
+  el.dispatchEvent(new (W().MouseEvent)('click', { bubbles: true, cancelable: true, view: W() }));
+}
+
+function state(tag) {
+  const stop = $('#btn-stop'), run = $('#btn-run'), dbg = $('#debugbar');
+  out(`[${tag}] stop.hidden=${stop.hidden} stop.w=${stop.getBoundingClientRect().width.toFixed(1)}`
+    + ` run.disabled=${run.disabled} body.is-running=${D().body.classList.contains('is-running')}`
+    + ` debugbar.hidden=${dbg.hidden}`);
+  const o = $('#out').textContent.trim().split('\n');
+  out(`  out尾: ${JSON.stringify(o.slice(-3).join(' | '))}`);
+}
+
+async function main() {
+  await new Promise((r) => (fr.contentDocument && D().readyState === 'complete' ? r() : fr.addEventListener('load', r, { once: true })));
+  await sleep(600);
+  state('初始');
+
+  // A. 默认示例：点运行，量到首次出字的时间
+  const t0 = performance.now();
+  click('#btn-run');
+  state('运行后 0ms');
+  let first = 0;
+  for (let i = 0; i < 400; i++) {
+    if ($('#out').textContent.includes('Hello, C!')) { first = performance.now() - t0; break; }
+    await sleep(10);
+  }
+  out(`A. 首次输出耗时 ${first.toFixed(0)} ms`);
+  let doneAt = 0;
+  for (let i = 0; i < 600; i++) {
+    if (!$('#btn-run').disabled) { doneAt = performance.now() - t0; break; }
+    await sleep(10);
+  }
+  out(`A. 整段运行耗时 ${doneAt.toFixed(0)} ms`);
+  state('运行结束');
+  out('  out全文: ' + JSON.stringify($('#out').textContent.trim()));
+
+  // B. 死循环：停止按钮是否出现、点了是否真停
+  const ta = $('.ed-ta');
+  ta.value = '#include <stdio.h>\nint main(void){ volatile long x = 0; while (1) { x++; } return 0; }\n';
+  ta.dispatchEvent(new (W().Event)('input', { bubbles: true }));
+  await sleep(100);
+  const t1 = performance.now();
+  click('#btn-run');
+  state('死循环运行后 0ms');
+  await sleep(500);
+  state('死循环 500ms 后');
+  const stopVisible = !$('#btn-stop').hidden;
+  out(`B. 停止按钮可见=${stopVisible} (${(performance.now() - t1).toFixed(0)} ms)`);
+  if (stopVisible) {
+    click('#btn-stop');
+    let stopped = 0;
+    for (let i = 0; i < 500; i++) {
+      if (!$('#btn-run').disabled) { stopped = performance.now() - t1; break; }
+      await sleep(10);
+    }
+    out(`B. 停止后 ${stopped.toFixed(0)} ms 恢复空闲`);
+    state('停止之后');
+  }
+  document.title = 'DIAG-DONE';
+  out('\nDIAG-DONE');
+}
+
+main().catch((e) => { out('出错：' + (e && e.stack ? e.stack : e)); document.title = 'DIAG-ERR'; });
+</script>
+</body>
+</html>
