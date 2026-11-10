@@ -4,15 +4,18 @@
 
 > 面向学习与练习：覆盖 C89/C99 的常用写法（指针、结构体、数组、递归、字符串、`scanf` 交互输入……），内置一个自己写的 C 解释执行引擎，点「运行」立刻出结果。
 
+**在线直接打开**（不用装、不用下载）：<https://y-steve-dragon.github.io/cstudio/>
+**想完全离线**：下载仓库里的 `palm-c-offline.html`，一个文件就是整个应用（见下文方式 A）。
+
 ---
 
 ## 一、怎么在手机上打开
 
 ### 方式 A：完全离线 —— 一个 HTML 文件搞定（最省事，也不用电脑一直开着）
 
-本目录里有一个 **`掌心C-离线版.html`**（约 280 KB），它就是整个应用：界面、样式、C 引擎全装在这一个文件里。
+本目录里有一个 **`palm-c-offline.html`**（约 280 KB），它就是整个应用：界面、样式、C 引擎全装在这一个文件里。
 
-1. 用 **USB 数据线**把手机连电脑，把这个 `掌心C-离线版.html` 拷进手机的「下载」目录。
+1. 用 **USB 数据线**把手机连电脑，把这个 `palm-c-offline.html` 拷进手机的「下载」目录。
    （也可以先发到微信/QQ 的「文件传输助手」，手机上下载下来；之后就一直不用网了。）
 2. 手机上用**浏览器**（Chrome / Edge / 夸克 / 系统自带都行）打开这个文件：
    文件管理器里点一下这个 html，选「用浏览器打开」。
@@ -175,10 +178,10 @@ CStudio/
   tests/ui.mjs            界面层测试（51 项：存储、高亮、示例可编译可运行）
   tests/perf.mjs          性能基准
   tools/                  开发用自检页（e2e.html 是真实浏览器端到端测试，25 项）
-  tools/build-offline.mjs 生成单文件离线版（掌心C-离线版.html）
+  tools/build-offline.mjs 生成单文件离线版（palm-c-offline.html）
   serve.mjs               零依赖静态服务器
   sw.js / manifest.webmanifest   PWA（离线 + 安装到桌面）
-  掌心C-离线版.html        完全离线版：一个文件就是整个应用（USB 拷进手机即可用）
+  palm-c-offline.html        完全离线版：一个文件就是整个应用（USB 拷进手机即可用）
 ```
 
 在电脑上跑自测：
@@ -188,7 +191,7 @@ cd CStudio
 node tests/run.mjs        # 引擎测试，应输出 “通过 32 / 32”
 node tests/ui.mjs         # 界面层自检，51 项
 node tests/perf.mjs       # 性能基准
-node tools/build-offline.mjs   # 重新生成 掌心C-离线版.html（改完代码记得重跑）
+node tools/build-offline.mjs   # 重新生成 palm-c-offline.html（改完代码记得重跑）
 node serve.mjs 8080       # 起本地服务器
 ```
 

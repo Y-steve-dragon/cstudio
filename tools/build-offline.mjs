@@ -1,6 +1,6 @@
 // 掌心 C · 单文件离线版构建脚本
 //   node tools/build-offline.mjs
-// 产出：CStudio/掌心C-离线版.html —— 一个 HTML 文件，里面装好了全部样式、全部 JS、
+// 产出：CStudio/palm-c-offline.html —— 一个 HTML 文件，里面装好了全部样式、全部 JS、
 // 全部引擎代码和图标。手机上把它拷进存储卡，用浏览器打开就能用，**不需要服务器、不需要网络**。
 //
 // 为什么需要这个脚本：浏览器不允许 file:// 页面 import ES 模块、也不允许 new Worker(相对路径)，
@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ENTRY = 'js/app.js';
-const OUT = path.join(ROOT, '掌心C-离线版.html');
+const OUT = path.join(ROOT, 'palm-c-offline.html');
 
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const norm = (p) => p.replace(/\\/g, '/');
